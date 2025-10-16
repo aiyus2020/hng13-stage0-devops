@@ -1,0 +1,37 @@
+name: Deploy index.html to NGINX server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Copy index.html to server
+        run: |
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no ./index.html ${{ secrets.USER }}@${{ secrets.HOST }}:/tmp/index.html
+
+      - name: Move file to NGINX root and restart
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no ${{ secrets.USER }}@${{ secrets.HOST }} <<'EOF'
+          sudo mv /tmp/index.html /var/www/html/index.html
+          sudo chown root:www-data /var/www/html/index.html
+          sudo chmod 644 /var/www/html/index.html
+          sudo systemctl restart nginx
+          EOF
+
+      - name: Verify Deployment
+        run: |
+          curl -I http://${{ secrets.HOST }}/
